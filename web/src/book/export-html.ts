@@ -1,6 +1,7 @@
 /** 듣는 책 HTML 플레이어. 앱 없이 브라우저에서 열리는 파일이다. */
 
-import { bookTitle, normalizeBook, type Book } from "./model.ts";
+import { linkParts } from "./links.ts";
+import { bookTitle, normalizeBook, spokenSentence, type Book } from "./model.ts";
 
 function escapeHtml(text: string): string {
   return text
@@ -44,6 +45,16 @@ body {
 .wrap { width: min(960px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 48px; }
 .mark { margin: 0; color: #8a8a8a; font-size: 0.78rem; letter-spacing: 0.04em; }
 h1 { margin: 4px 0 8px; font-size: 1.6rem; line-height: 1.3; }
+.source { margin: 0 0 12px; color: #5c5c5c; }
+.sentence a, .image a { color: #111; }
+.ok {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e7f6e7;
+  font-size: 0.78rem;
+}
 .honest { margin: 0 0 16px; color: #5c5c5c; font-size: 0.9rem; }
 .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
 .toc, .chapter, .image, .controls {
@@ -136,6 +147,35 @@ const PLAYER_JS = `
     if (className) node.className = className;
     if (text != null) node.textContent = text;
     return node;
+  }
+  function appendLinked(parent, text) {
+    var raw = String(text || "");
+    var cursor = 0;
+    var stop = " \\t\\n\\r<>" + String.fromCharCode(34) + "'";
+    while (cursor < raw.length) {
+      var start = raw.indexOf("https://", cursor);
+      if (start < 0) {
+        parent.appendChild(document.createTextNode(raw.slice(cursor)));
+        return;
+      }
+      if (start > cursor) parent.appendChild(document.createTextNode(raw.slice(cursor, start)));
+      var end = start + "https://".length;
+      while (end < raw.length && stop.indexOf(raw.charAt(end)) < 0) end += 1;
+      var href = raw.slice(start, end);
+      while (href.length && ".,);:]}>".indexOf(href.charAt(href.length - 1)) >= 0) href = href.slice(0, -1);
+      if (href.length <= "https://".length) {
+        parent.appendChild(document.createTextNode("https://"));
+        cursor = start + "https://".length;
+        continue;
+      }
+      var anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      anchor.textContent = href;
+      parent.appendChild(anchor);
+      cursor = start + href.length;
+    }
   }
   function storageKey() { return "opencircuit-listen:" + book.id; }
   function speechAvailable() {
@@ -411,7 +451,11 @@ const PLAYER_JS = `
           cap.appendChild(el("span", "file", block.fileName || "그림"));
           if (state.images) {
             var alt = spokenImage(block);
-            if (alt) cap.appendChild(el("p", "", alt));
+            if (alt) {
+              var caption = el("p", "");
+              appendLinked(caption, alt);
+              cap.appendChild(caption);
+            }
           } else {
             cap.appendChild(el("p", "", "그림 설명을 듣기에서 빼 두었습니다."));
           }
@@ -424,7 +468,12 @@ const PLAYER_JS = `
           (function (sentence) {
             var spoken = spokenSentence(sentence);
             if (!spoken) return;
-            var span = el("span", "sentence", spoken);
+            var span = el("span", "sentence");
+            appendLinked(span, spoken);
+            if (sentence.confirmed) {
+              span.appendChild(document.createTextNode(" "));
+              span.appendChild(el("span", "ok", "확인함"));
+            }
             span.id = "cue-" + sentence.id;
             span.tabIndex = 0;
             if (current && current.id === sentence.id) {
@@ -563,9 +612,45 @@ const PLAYER_JS = `
 })();
 `;
 
+function linkedHtml(text: string): string {
+  return linkParts(text)
+    .map((part) =>
+      part.kind === "link"
+        ? `<a href="${escapeHtml(part.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(part.text)}</a>`
+        : escapeHtml(part.text),
+    )
+    .join("");
+}
+
+function staticReader(book: Book): string {
+  return book.chapters
+    .map((chapter) => {
+      const body = chapter.blocks
+        .map((block) => {
+          if (block.kind === "image") {
+            const alt = block.alt.trim();
+            const caption = alt ? `<p>${linkedHtml(alt)}</p>` : "";
+            return `<figure class="image"><figcaption><span class="file">${escapeHtml(block.fileName || "그림")}</span>${caption}</figcaption></figure>`;
+          }
+          return block.sentences
+            .map((sentence) => {
+              const spoken = spokenSentence(sentence, false).trim();
+              if (!spoken) return "";
+              const mark = sentence.confirmed ? ` <span class="ok">확인함</span>` : "";
+              return `<p class="sentence">${linkedHtml(spoken)}${mark}</p>`;
+            })
+            .join("");
+        })
+        .join("");
+      return `<section class="chapter"><h3>${escapeHtml(chapter.title || "제목 없는 장")}</h3>${body}</section>`;
+    })
+    .join("");
+}
+
 export function renderPlayerHtml(book: Book): string {
   const clean = normalizeBook(book);
   const title = escapeHtml(bookTitle(clean));
+  const source = clean.sourceFileName ? `<p class="source">파일 ${escapeHtml(clean.sourceFileName)}</p>` : "";
   const data = embedJson(clean);
   const script = PLAYER_JS.replace("__BOOK_JSON__", () => data);
   return [
@@ -585,6 +670,7 @@ export function renderPlayerHtml(book: Book): string {
     "<header>",
     '<p class="mark">듣는 책</p>',
     `<h1>${title}</h1>`,
+    source,
     '<p class="honest">이 파일은 브라우저에서 듣는 플레이어입니다. 같은 파일을 Windows와 Mac에서 엽니다. DAISY나 EPUB으로 내보낸 파일이 아닙니다.</p>',
     "</header>",
     '<div class="layout">',
@@ -602,7 +688,7 @@ export function renderPlayerHtml(book: Book): string {
     '<label class="check"><input id="images" type="checkbox" checked> 그림 설명</label>',
     "</div>",
     '<p id="now" role="status"></p>',
-    '<article id="reader"></article>',
+    `<article id="reader">${staticReader(clean)}</article>`,
     "</main>",
     "</div>",
     "</div>",

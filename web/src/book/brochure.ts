@@ -10,6 +10,7 @@ function sentence(id: string, text: string): Sentence {
     id,
     text: text.normalize("NFC"),
     easyText: "",
+    confirmed: false,
     audioName: null,
     audioDataUrl: null,
   };

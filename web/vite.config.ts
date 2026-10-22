@@ -100,6 +100,41 @@ function contentType(file: string): string {
   return "application/octet-stream";
 }
 
+function pdfjsWorkerPlugin(): Plugin {
+  const file = path.join(here, "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs");
+  const serve = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    const url = (req.url ?? "").split("?")[0];
+    if (url !== "/pdfjs/pdf.worker.min.mjs") {
+      next();
+      return;
+    }
+    if (!fs.existsSync(file)) {
+      res.statusCode = 404;
+      res.end();
+      return;
+    }
+    res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+    fs.createReadStream(file).pipe(res);
+  };
+  return {
+    name: "pdfjs-worker",
+    configureServer(server) {
+      server.middlewares.use(serve);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(serve);
+    },
+    generateBundle() {
+      if (!fs.existsSync(file)) return;
+      this.emitFile({
+        type: "asset",
+        fileName: "pdfjs/pdf.worker.min.mjs",
+        source: fs.readFileSync(file),
+      });
+    },
+  };
+}
+
 function studioPlugin(): Plugin {
   return {
     name: "opencircuit-studio",
@@ -206,7 +241,7 @@ function routeStatic(
 }
 
 export default defineConfig({
-  plugins: [react(), studioPlugin()],
+  plugins: [pdfjsWorkerPlugin(), react(), studioPlugin()],
   server: {
     host: "127.0.0.1",
     port: 1234,

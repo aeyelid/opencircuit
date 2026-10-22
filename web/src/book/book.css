@@ -142,6 +142,18 @@
 }
 
 .book-spoken { margin: 0 0 6px; overflow-wrap: anywhere; }
+.book-spoken a { color: var(--ink); }
+.book-check {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e7f6e7;
+  font-size: 0.78rem;
+}
+.book-card-actions button[aria-pressed="true"] {
+  background: #e7f6e7;
+}
 
 .book-file { margin: 6px 0 0; color: var(--muted); font-size: 0.82rem; overflow-wrap: anywhere; }
 

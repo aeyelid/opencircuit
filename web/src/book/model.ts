@@ -7,6 +7,8 @@ export type Sentence = {
   id: string;
   text: string;
   easyText: string;
+  /** 발음·읽기 순서를 사람이 확인한 문장. 쉬운 글과 별개다. */
+  confirmed: boolean;
   audioName: string | null;
   audioDataUrl: string | null;
 };
@@ -135,6 +137,7 @@ function emptySentence(): Sentence {
     id: newId(),
     text: "",
     easyText: "",
+    confirmed: false,
     audioName: null,
     audioDataUrl: null,
   };
@@ -180,6 +183,7 @@ function sentencesFromParagraph(text: string): Sentence[] {
     id: newId(),
     text: line,
     easyText: "",
+    confirmed: false,
     audioName: null,
     audioDataUrl: null,
   }));
@@ -335,6 +339,7 @@ function coerceSentence(raw: unknown): Sentence | null {
     id: row.id,
     text: row.text.normalize("NFC"),
     easyText: isString(row.easyText) ? row.easyText.normalize("NFC") : "",
+    confirmed: row.confirmed === true,
     audioName: isString(row.audioName) && row.audioName.trim() ? normalizeFileName(row.audioName) : null,
     audioDataUrl: isAudioData(row.audioDataUrl) ? row.audioDataUrl : null,
   };
@@ -382,6 +387,7 @@ export function normalizeBook(book: Book): Book {
             ...sentence,
             text: sentence.text.normalize("NFC"),
             easyText: sentence.easyText.normalize("NFC"),
+            confirmed: sentence.confirmed === true,
             audioName: sentence.audioName ? normalizeFileName(sentence.audioName) : null,
           })),
         };
@@ -564,7 +570,7 @@ export function renameChapter(book: Book, chapterId: string, title: string): Boo
 export function updateSentence(
   book: Book,
   sentenceId: string,
-  patch: Partial<Pick<Sentence, "text" | "easyText" | "audioName" | "audioDataUrl">>,
+  patch: Partial<Pick<Sentence, "text" | "easyText" | "confirmed" | "audioName" | "audioDataUrl">>,
 ): Book {
   let hit = false;
   const chapters = book.chapters.map((chapter) => ({
@@ -763,6 +769,7 @@ export function sampleBook(): Book {
     id,
     text,
     easyText,
+    confirmed: false,
     audioName: null,
     audioDataUrl: null,
   });

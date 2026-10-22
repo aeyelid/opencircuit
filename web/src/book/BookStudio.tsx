@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { renderPlayerHtml } from "./export-html.ts";
+import { linkParts } from "./links.ts";
+import { bookFromPdfBytes } from "./pdf-read.ts";
 import {
   addChapter,
   addImage,
@@ -327,17 +329,22 @@ function useBookSession() {
     });
   }
 
+  function stageBook(next: Book, message: string) {
+    if (book) {
+      setPending(next);
+      setNotice({ kind: "idle", text: "" });
+      return;
+    }
+    commitBook(next, message);
+  }
+
   function stageText(text: string, fileName: string) {
     const result = parseStoredText(text, fileName);
     if (!isBook(result)) {
       setNotice({ kind: "err", text: explain(result.error) });
       return;
     }
-    if (book) {
-      setPending(result);
-      return;
-    }
-    commitBook(result, "책을 열었습니다. 재생을 누르면 첫 문장부터 듣습니다.");
+    stageBook(result, "책을 열었습니다. 재생을 누르면 첫 문장부터 듣습니다.");
   }
 
   function requestSample() {
@@ -387,9 +394,26 @@ function useBookSession() {
     applyMode,
     changeBook,
     stageText,
+    stageBook,
     requestSample,
     confirmPending,
   };
+}
+
+function LinkedText({ text }: { text: string }) {
+  return (
+    <>
+      {linkParts(text).map((part, index) =>
+        part.kind === "link" ? (
+          <a key={`${part.href}-${index}`} href={part.href} target="_blank" rel="noopener noreferrer">
+            {part.text}
+          </a>
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
 }
 
 function SentenceEditor({
@@ -404,6 +428,7 @@ function SentenceEditor({
   onRemove,
   onAudio,
   onClearAudio,
+  onConfirm,
 }: {
   sentence: Sentence;
   easy: boolean;
@@ -416,11 +441,19 @@ function SentenceEditor({
   onRemove: () => void;
   onAudio: (file: File | undefined) => void;
   onClearAudio: () => void;
+  onConfirm: () => void;
 }) {
   const spoken = spokenSentence(sentence, easy);
   return (
-    <div id={`cue-${sentence.id}`} className={current ? "book-card is-current" : "book-card"}>
-      <p className="book-spoken">{spoken || "빈 문장입니다. 문장을 입력하세요."}</p>
+    <div
+      id={`cue-${sentence.id}`}
+      className={current ? "book-card is-current" : "book-card"}
+      data-confirmed={sentence.confirmed ? "true" : "false"}
+    >
+      <p className="book-spoken">
+        {spoken ? <LinkedText text={spoken} /> : "빈 문장입니다. 문장을 입력하세요."}
+        {sentence.confirmed ? <span className="book-check">확인함</span> : null}
+      </p>
       <label className="book-field">
         문장
         <textarea
@@ -464,6 +497,14 @@ function SentenceEditor({
             음성 빼기
           </button>
         ) : null}
+        <button
+          type="button"
+          className="btn ghost"
+          aria-pressed={sentence.confirmed}
+          onClick={onConfirm}
+        >
+          {sentence.confirmed ? "확인함" : "문장 확인"}
+        </button>
         <button type="button" className="btn ghost" onClick={onRemove}>
           문장 삭제
         </button>
@@ -502,7 +543,13 @@ function ImageEditor({
     <figure id={`cue-${block.id}`} className={current ? "book-card is-current" : "book-card"}>
       {block.dataUrl ? <img className="book-picture" src={block.dataUrl} alt={spoken || block.alt} /> : null}
       <p className="book-file">파일 이름 {block.fileName}</p>
-      {spoken ? <p className="book-spoken">{spoken}</p> : <p className="book-spoken">그림 설명을 입력하세요.</p>}
+      {spoken ? (
+        <p className="book-spoken">
+          <LinkedText text={spoken} />
+        </p>
+      ) : (
+        <p className="book-spoken">그림 설명을 입력하세요.</p>
+      )}
       <label className="book-field">
         파일 이름
         <input
@@ -562,6 +609,7 @@ export function BookStudio() {
   const [draft, setDraft] = useState("");
   const [pasteOpen, setPasteOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
   const {
     book,
     ready,
@@ -588,6 +636,7 @@ export function BookStudio() {
     applyMode,
     changeBook,
     stageText,
+    stageBook,
     requestSample,
     confirmPending,
   } = session;
@@ -602,6 +651,41 @@ export function BookStudio() {
   useEffect(() => {
     document.title = book ? `${bookTitle(book)} — 듣는 책` : "듣는 책";
   }, [book]);
+
+  async function onOpenPdf(file: File | undefined) {
+    if (!file) return;
+    const named = normalizeFileName(file.name);
+    const looksPdf = file.type === "application/pdf" || named.toLowerCase().endsWith(".pdf");
+    if (!looksPdf) {
+      setNotice({ kind: "err", text: "PDF 파일이 아닙니다." });
+      return;
+    }
+    setNotice({ kind: "idle", text: "PDF를 읽고 있습니다." });
+    try {
+      const data = new Uint8Array(await file.arrayBuffer());
+      const result = await Promise.race([
+        bookFromPdfBytes(data, named),
+        new Promise<Awaited<ReturnType<typeof bookFromPdfBytes>>>((_, reject) => {
+          window.setTimeout(() => reject(new Error("읽는 데 너무 오래 걸립니다.")), 60_000);
+        }),
+      ]);
+      if (!isBook(result)) {
+        setNotice({ kind: "err", text: result.error });
+        return;
+      }
+      stageBook(result, "PDF를 책으로 열었습니다. 재생을 누르면 첫 문장부터 듣습니다.");
+    } catch (error) {
+      console.error(error);
+      const detail = error instanceof Error ? error.message : "";
+      const korean = /[가-힣]/.test(detail) ? detail.slice(0, 180) : "";
+      setNotice({
+        kind: "err",
+        text: korean
+          ? `PDF를 읽지 못했습니다. ${korean}`
+          : "PDF를 읽지 못했습니다. 글자가 있는 PDF인지 확인해 주세요.",
+      });
+    }
+  }
 
   async function onOpenFile(file: File | undefined) {
     if (!file) return;
@@ -718,6 +802,9 @@ export function BookStudio() {
           <button type="button" className="btn ghost" onClick={() => fileRef.current?.click()}>
             원고 열기
           </button>
+          <button type="button" className="btn ghost" onClick={() => pdfRef.current?.click()}>
+            PDF 열기
+          </button>
           <button type="button" className="btn ghost" onClick={() => setPasteOpen((open) => !open)}>
             원고 붙여넣기
           </button>
@@ -736,6 +823,17 @@ export function BookStudio() {
               const file = event.target.files?.[0];
               event.target.value = "";
               void onOpenFile(file);
+            }}
+          />
+          <input
+            ref={pdfRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              void onOpenPdf(file);
             }}
           />
         </div>
@@ -925,6 +1023,9 @@ export function BookStudio() {
                           updateSentence(current, sentenceId, { audioName: null, audioDataUrl: null }),
                         )
                       }
+                      onConfirm={(sentenceId, confirmed) =>
+                        changeBook((current) => updateSentence(current, sentenceId, { confirmed }))
+                      }
                     />
                   );
                 })}
@@ -1047,6 +1148,7 @@ function ParagraphEditor({
   onRemove,
   onAudio,
   onClearAudio,
+  onConfirm,
 }: {
   block: ParagraphBlock;
   easy: boolean;
@@ -1060,6 +1162,7 @@ function ParagraphEditor({
   onRemove: (sentenceId: string) => void;
   onAudio: (sentenceId: string, file: File | undefined) => void;
   onClearAudio: (sentenceId: string) => void;
+  onConfirm: (sentenceId: string, confirmed: boolean) => void;
 }) {
   return (
     <div className="book-card">
@@ -1085,6 +1188,7 @@ function ParagraphEditor({
           onRemove={() => onRemove(sentence.id)}
           onAudio={(file) => onAudio(sentence.id, file)}
           onClearAudio={() => onClearAudio(sentence.id)}
+          onConfirm={() => onConfirm(sentence.id, !sentence.confirmed)}
         />
       ))}
     </div>
