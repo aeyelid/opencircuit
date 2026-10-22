@@ -508,6 +508,17 @@ select { min-height: 38px; }
 .lightbox-inner audio { width: 100%; }
 .lightbox-inner p { margin: 0; color: var(--muted); }
 
+.studio-links {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 0.82rem;
+}
+.studio-links a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.studio-links a:hover { color: var(--ink); text-decoration: underline; }
+
 @media (max-width: 800px) {
   .studio { width: calc(100% - 16px); padding: 6px 0 8px; gap: 8px; }
   .tab { flex: 1; }

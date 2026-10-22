@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { BookStudio } from "./book/BookStudio";
 import { CameraPage } from "./pages/Camera";
 
 export function App() {
@@ -6,6 +7,7 @@ export function App() {
     <div className="app">
       <Routes>
         <Route path="/" element={<CameraPage />} />
+        <Route path="/book" element={<BookStudio />} />
         <Route path="/intro" element={<Navigate to="/" replace />} />
         <Route path="/studio" element={<Navigate to="/" replace />} />
         <Route path="/make" element={<Navigate to="/" replace />} />

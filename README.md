@@ -76,7 +76,7 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 ./start.sh
 ```
 
-브라우저가 `http://127.0.0.1:1234` 을 엽니다. 자세한 내용 → [web/README.md](web/README.md)
+브라우저가 `http://127.0.0.1:1234` 을 엽니다. 듣는 책 제작기는 http://127.0.0.1:1234/book 입니다. 자세한 내용 → [web/README.md](web/README.md)
 
 ---
 

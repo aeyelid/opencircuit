@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { ResultGallery } from "../gallery/Grid";
 import {
   hasCaptionerCache,
@@ -524,6 +525,9 @@ export function CameraPage() {
 
   return (
     <main className="studio">
+      <nav className="studio-links" aria-label="다른 화면">
+        <Link to="/book">듣는 책</Link>
+      </nav>
       <NoticeSlot
         kind={장면안내.kind}
         text={장면안내.text || "장면 · 문장 모델 안내가 여기 나옵니다."}
