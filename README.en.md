@@ -76,7 +76,7 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 ./start.sh
 ```
 
-The browser opens `http://127.0.0.1:1234`. Details → [web/README.md](web/README.md)
+The browser opens `http://127.0.0.1:1234`. The listening-book author and player is at http://127.0.0.1:1234/book. Details → [web/README.md](web/README.md)
 
 ---
 

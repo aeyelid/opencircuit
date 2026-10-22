@@ -33,6 +33,7 @@ chmod +x start.sh
 | `/` | 실습 안내 |
 | `/make` | 웹캠 → 문장 → 이 웹에서 생성·수신 |
 | `/gallery` | 문서 폴더 `OpenCircuit` 아래 작업을 3D 방에 검 |
+| `/book` | 브라우저에서 듣는 책을 만들고 듣습니다. DAISY 파일로 내보내지 않습니다. |
 
 전시장은 이 컴퓨터를 기준으로 문서 폴더를 찾습니다.
 Windows 는 `문서` 또는 `Documents`, Linux 는 XDG 문서 폴더입니다.
