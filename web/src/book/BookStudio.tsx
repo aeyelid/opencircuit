@@ -36,6 +36,7 @@ import {
   type ParagraphBlock,
   type Sentence,
 } from "./model.ts";
+import { brochureBook } from "./brochure.ts";
 import { startPlayback, watchVoices } from "./speech.ts";
 import { loadStoredBook, loadStoredPrefs, saveStoredBook, saveStoredPrefs } from "./store.ts";
 import "./book.css";
@@ -127,7 +128,7 @@ function useBookSession() {
       try {
         const [stored, prefs] = await Promise.all([loadStoredBook(), loadStoredPrefs()]);
         if (cancel) return;
-        if (stored) setBook(stored);
+        setBook(stored ?? brochureBook());
         if (stored && prefs && prefs.bookId === stored.id) {
           rateRef.current = prefs.rate;
           setRate(prefs.rate);
